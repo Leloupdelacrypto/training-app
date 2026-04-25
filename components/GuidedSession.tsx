@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { MuscleGlyph } from "@/components/MuscleGlyph";
+import { inferMuscleGroup } from "@/lib/muscles";
 import { intensiteDepuisRpe, recommanderObjectif } from "@/lib/progression";
 import { Exercice, JourProgramme, ResultatExercice, SessionEnregistree } from "@/lib/types";
 
@@ -48,6 +50,8 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
   const totalSeries = jour.exercices.reduce((acc, exercice) => acc + exercice.series, 0);
   const seriesValidees = Object.values(seriesParExercice).reduce((acc, values) => acc + values.length, 0);
   const progression = totalSeries > 0 ? Math.round((seriesValidees / totalSeries) * 100) : 0;
+  const muscleGroup = inferMuscleGroup(exerciceCourant);
+  const restProgress = exerciceCourant.reposSec > 0 ? Math.max(0, Math.min(1, reposRestant / exerciceCourant.reposSec)) : 0;
 
   useEffect(() => {
     if (reposRestant <= 0) return;
@@ -119,22 +123,24 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
   if (isCompleteView) {
     const minutes = Math.max(1, Math.round((Date.now() - start) / 1000 / 60));
     return (
-      <section className="panel sessionCompleteCard">
-        <p className="eyebrow">Séance terminée</p>
-        <h2>Excellent travail 🔥</h2>
-        <p className="mutedText">{seriesValidees}/{totalSeries} séries validées en {minutes} min.</p>
-        <div className="timelineCards">
-          {jour.exercices.map((exercice) => {
-            const series = seriesParExercice[exercice.id] ?? [];
-            return (
-              <article className="timelineCard" key={exercice.id}>
-                <strong>{exercice.nom}</strong>
-                <p>{series.length}/{exercice.series} séries · {series.map((s) => s.reps).join(" /") || "-"} reps</p>
-              </article>
-            );
-          })}
-        </div>
-        <button type="button" className="primaryButton" onClick={finaliserSeance}>Enregistrer et continuer</button>
+      <section className="sessionCompleteView">
+        <article className="sessionCompleteCard">
+          <p className="eyebrow">Séance terminée</p>
+          <h2>Excellent travail 🔥</h2>
+          <p className="mutedText">{seriesValidees}/{totalSeries} séries validées en {minutes} min.</p>
+          <div className="chipDeck">
+            {jour.exercices.map((exercice) => {
+              const series = seriesParExercice[exercice.id] ?? [];
+              return (
+                <article className="chipStat" key={exercice.id}>
+                  <strong>{exercice.nom}</strong>
+                  <small>{series.length}/{exercice.series} séries · {series.map((s) => s.reps).join(" /") || "-"} reps</small>
+                </article>
+              );
+            })}
+          </div>
+          <button type="button" className="primaryButton jumbo" onClick={finaliserSeance}>Enregistrer</button>
+        </article>
       </section>
     );
   }
@@ -142,35 +148,36 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
   const reposActif = reposRestant > 0;
 
   return (
-    <section className="guidedFullscreen">
+    <section className="guidedPremium">
       <header className="guidedHeader">
         <p className="eyebrow">{jour.titre}</p>
         <strong>Exercice {indexExercice + 1}/{jour.exercices.length}</strong>
         <div className="progressTrack" aria-hidden="true">
           <div className="progressBar" style={{ width: `${progression}%` }} />
         </div>
-        <small className="mutedText">Progression séance: {progression}%</small>
       </header>
 
-      <article className="guidedExerciseCard">
-        <div className="exerciseIllustration large" aria-hidden="true">✷</div>
-        <h2>{exerciceCourant.nom}</h2>
-        <p className="mutedText">Série {Math.min(serieActuelleIndex + 1, exerciceCourant.series)}/{exerciceCourant.series} · cible {exerciceCourant.repsCible}</p>
+      <article className="guidedMainCard">
+        <div className="exerciseHero">
+          <MuscleGlyph group={muscleGroup} size="lg" />
+          <h2>{exerciceCourant.nom}</h2>
+          <p>Série {Math.min(serieActuelleIndex + 1, exerciceCourant.series)}/{exerciceCourant.series} · cible {exerciceCourant.repsCible}</p>
+        </div>
 
-        <div className="metricRow">
+        <div className="megaMetrics">
           <div>
             <span>Charge conseillée</span>
             <strong>{objectif.chargeCibleKg} kg</strong>
           </div>
           <div>
-            <span>Objectif du jour</span>
+            <span>Objectif reps</span>
             <strong>{objectif.repsCible}</strong>
           </div>
         </div>
 
         <div className="quickAdjustRow">
           <button type="button" className="stepButton" onClick={() => setRepsDraft((v) => Math.max(1, v - 1))}>−</button>
-          <div className="repValue">{repsDraft} reps</div>
+          <div className="repValue">{repsDraft}</div>
           <button type="button" className="stepButton" onClick={() => setRepsDraft((v) => v + 1)}>+</button>
         </div>
 
@@ -178,31 +185,28 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
           <p className="fieldLabel">RPE ressenti</p>
           <div className="rpeRow">
             {[6, 7, 8, 9, 10].map((rpe) => (
-              <button
-                key={rpe}
-                type="button"
-                className={`choiceButton ${rpeDraft === rpe ? "active" : ""}`}
-                onClick={() => setRpeDraft(rpe)}
-              >
+              <button key={rpe} type="button" className={`choiceButton ${rpeDraft === rpe ? "active" : ""}`} onClick={() => setRpeDraft(rpe)}>
                 {rpe}
               </button>
             ))}
           </div>
         </div>
 
-        <button type="button" className="primaryButton" onClick={validerSerie} disabled={reposActif || serieActuelleIndex >= exerciceCourant.series}>
+        <button type="button" className="primaryButton jumbo" onClick={validerSerie} disabled={reposActif || serieActuelleIndex >= exerciceCourant.series}>
           Valider la série
         </button>
       </article>
 
-      <article className="restPremiumCard">
-        <p className="eyebrow">Chrono repos</p>
-        <strong>{String(Math.floor(reposRestant / 60)).padStart(2, "0")}:{String(reposRestant % 60).padStart(2, "0")}</strong>
+      <article className="restVisualCard">
+        <div className="restCircle" style={{ ["--rest-progress" as string]: `${restProgress}` }}>
+          <strong>{String(Math.floor(reposRestant / 60)).padStart(2, "0")}:{String(reposRestant % 60).padStart(2, "0")}</strong>
+          <small>Repos</small>
+        </div>
         <div className="inlineActions twoCols">
           <button type="button" onClick={() => setReposRestant((v) => v + 30)}>+30 s</button>
-          <button type="button" onClick={() => setReposRestant(0)}>Passer repos</button>
+          <button type="button" onClick={() => setReposRestant(0)}>Passer</button>
           <button type="button" onClick={exerciceSuivant}>Exercice suivant</button>
-          <button type="button" className="ghostButton" onClick={() => setIsCompleteView(true)}>Résumé séance</button>
+          <button type="button" className="ghostButton" onClick={() => setIsCompleteView(true)}>Résumé</button>
         </div>
       </article>
     </section>
