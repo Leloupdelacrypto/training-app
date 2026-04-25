@@ -7,6 +7,7 @@ export function getDonneesInitiales(): DonneesApp {
   return {
     programme: programmeInitial,
     historique: [],
+    mesures: {},
     derniereMiseAJourISO: new Date().toISOString()
   };
 }
@@ -19,7 +20,12 @@ export function chargerDonnees(): DonneesApp {
   try {
     const brut = window.localStorage.getItem(STORAGE_KEY);
     if (!brut) return getDonneesInitiales();
-    return JSON.parse(brut) as DonneesApp;
+    const parsed = JSON.parse(brut) as Partial<DonneesApp>;
+    return {
+      ...getDonneesInitiales(),
+      ...parsed,
+      mesures: parsed.mesures ?? {}
+    };
   } catch {
     return getDonneesInitiales();
   }
