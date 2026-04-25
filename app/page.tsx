@@ -36,7 +36,7 @@ export default function Page() {
     <main className="container">
       <header className="hero panel">
         <h1>Training App V1</h1>
-        <p>Suivi d'entraînement intelligent en français, sans backend, orienté mobile.</p>
+        <p>Suivi d&apos;entraînement intelligent en français, sans backend, orienté mobile.</p>
       </header>
 
       <section className="panel">
