@@ -3,21 +3,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataTools } from "@/components/DataTools";
 import { GuidedSession } from "@/components/GuidedSession";
+import { analyserCoachLocal, CoachBadge } from "@/lib/coach";
 import { recommanderObjectif, volumeEstime } from "@/lib/progression";
 import { chargerDonnees, getDonneesInitiales, sauvegarderDonnees } from "@/lib/storage";
 import { DonneesApp, JourProgramme, MesureEntry } from "@/lib/types";
 
-type Onglet = "accueil" | "seance" | "programme" | "historique" | "progression" | "mesures" | "reglages";
+type Onglet = "accueil" | "seance" | "programme" | "coach" | "historique" | "progression" | "mesures" | "reglages";
 
-const navigation: { id: Onglet; label: string }[] = [
-  { id: "accueil", label: "Accueil" },
-  { id: "seance", label: "Séance" },
-  { id: "programme", label: "Programme" },
-  { id: "historique", label: "Historique" },
-  { id: "progression", label: "Progression" },
-  { id: "mesures", label: "Mesures" },
-  { id: "reglages", label: "Réglages" }
+const navigation: { id: Onglet; label: string; icon: string }[] = [
+  { id: "accueil", label: "Accueil", icon: "🏠" },
+  { id: "seance", label: "Séance", icon: "🏋️" },
+  { id: "programme", label: "Programme", icon: "📚" },
+  { id: "coach", label: "Coach", icon: "🧠" },
+  { id: "historique", label: "Historique", icon: "🕒" },
+  { id: "progression", label: "Progression", icon: "📈" },
+  { id: "mesures", label: "Mesures", icon: "📏" },
+  { id: "reglages", label: "Réglages", icon: "⚙️" }
 ];
+
+const badgeClassMap: Record<CoachBadge, string> = {
+  Progression: "isProgression",
+  Fatigue: "isFatigue",
+  Volume: "isVolume",
+  Mesures: "isMesures",
+  "Priorité haute": "isPriority"
+};
 
 function movingAverage7(values: { dateISO: string; value: number }[]) {
   return values.map((item, index) => {
@@ -106,6 +116,7 @@ export default function Page() {
   const tailleSerie = useMemo(() => data.mesuresHistorique.filter((m) => m.tourTailleCm).map((m) => ({ dateISO: m.dateISO, value: m.tourTailleCm as number })), [data.mesuresHistorique]);
   const poidsMoyenne7 = useMemo(() => movingAverage7(poidsSerie), [poidsSerie]);
   const tailleMoyenne7 = useMemo(() => movingAverage7(tailleSerie), [tailleSerie]);
+  const coachInsights = useMemo(() => analyserCoachLocal(data), [data]);
 
   function onSessionDone(session: DonneesApp["historique"][number]) {
     setData((prev) => ({ ...prev, historique: [session, ...prev.historique] }));
@@ -200,9 +211,38 @@ export default function Page() {
 
         <div className="timelineCards">
           {jour?.exercices.map((e) => (
-            <article className="timelineCard" key={e.id}>
-              <strong>{e.nom}</strong>
-              <p>{e.series} séries · {e.repsCible} · {e.chargeKg} kg</p>
+            <article className="timelineCard exerciseCard" key={e.id}>
+              <div className="exerciseIllustration" aria-hidden="true">🏋️‍♂️</div>
+              <div>
+                <strong>{e.nom}</strong>
+                <p>{e.series} séries · {e.repsCible} · {e.chargeKg} kg</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  function renderCoach() {
+    return (
+      <section className="panel">
+        <h2>Coach local (14 jours)</h2>
+        <p className="mutedText">Analyse locale sans API externe. Conseils rapides à appliquer dès la prochaine séance.</p>
+        <div className="timelineCards">
+          {coachInsights.map((insight) => (
+            <article className="timelineCard coachCard" key={insight.id}>
+              <div className="coachCardHead">
+                <strong>{insight.titre}</strong>
+                <div className="badgeRow">
+                  {insight.badges.map((badge) => (
+                    <span key={`${insight.id}-${badge}`} className={`coachBadge ${badgeClassMap[badge]}`}>
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <p>{insight.conseil}</p>
             </article>
           ))}
         </div>
@@ -312,6 +352,7 @@ export default function Page() {
         {onglet === "accueil" && renderAccueil()}
         {onglet === "seance" && renderSeance(jour)}
         {onglet === "programme" && renderProgramme()}
+        {onglet === "coach" && renderCoach()}
         {onglet === "historique" && renderHistorique()}
         {onglet === "progression" && renderProgression()}
         {onglet === "mesures" && renderMesures()}
@@ -321,7 +362,8 @@ export default function Page() {
       <nav className="tabBar" aria-label="Navigation principale">
         {navigation.map((item) => (
           <button key={item.id} type="button" className={`tabButton ${onglet === item.id ? "active" : ""}`} onClick={() => setOnglet(item.id)}>
-            {item.label}
+            <span aria-hidden="true">{item.icon}</span>
+            <span>{item.label}</span>
           </button>
         ))}
       </nav>
