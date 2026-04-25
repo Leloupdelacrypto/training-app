@@ -38,8 +38,15 @@ export interface SessionEnregistree {
   resultats: ResultatExercice[];
 }
 
+export interface MesuresUtilisateur {
+  poidsKg?: number;
+  tourTailleCm?: number;
+  dateISO?: string;
+}
+
 export interface DonneesApp {
   programme: Programme;
   historique: SessionEnregistree[];
+  mesures: MesuresUtilisateur;
   derniereMiseAJourISO: string;
 }

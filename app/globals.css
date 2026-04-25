@@ -1,88 +1,367 @@
 :root {
-  --bg: #0f172a;
-  --card: #111827;
-  --soft: #1f2937;
-  --text: #f3f4f6;
-  --muted: #cbd5e1;
-  --primary: #22d3ee;
+  --bg: #f4f7ff;
+  --bg-soft: #eef3ff;
+  --card: #ffffff;
+  --text: #15203b;
+  --muted: #5f6e8a;
+  --border: #d9e2f7;
+  --primary: #3a66ff;
+  --primary-soft: #ebf0ff;
+  --success: #0ea47a;
+  --shadow: 0 10px 30px rgba(21, 32, 59, 0.08);
 }
 
 * { box-sizing: border-box; }
+
 body {
   margin: 0;
-  font-family: Inter, system-ui, sans-serif;
-  background: linear-gradient(180deg, #020617 0%, #0f172a 100%);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  background: linear-gradient(180deg, #f8faff 0%, #eef3ff 100%);
   color: var(--text);
 }
 
-.container {
-  width: min(820px, 100%);
+h1, h2, h3, p {
+  margin: 0;
+}
+
+p {
+  line-height: 1.45;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+.appShell {
+  max-width: 980px;
   margin: 0 auto;
-  padding: 1rem;
+  padding: 1rem 1rem 5.5rem;
   display: grid;
   gap: 1rem;
 }
 
-.panel {
-  background: color-mix(in srgb, var(--card), black 8%);
-  border: 1px solid #1e293b;
+.topBar {
+  padding: 1.1rem;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #f6f8ff 0%, #e6eeff 100%);
+  border: 1px solid var(--border);
+}
+
+.topBar h1 {
+  font-size: 1.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.topBar p,
+.mutedText {
+  color: var(--muted);
+}
+
+.tabBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  padding: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  background: rgba(244, 247, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border);
+}
+
+.tabButton {
+  border: 1px solid var(--border);
   border-radius: 14px;
+  background: var(--card);
+  color: var(--muted);
+  padding: 0.6rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+.tabButton.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  font-weight: 700;
+}
+
+.contentArea {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboardGrid,
+.stackCards {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
   padding: 1rem;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.75rem;
 }
 
-.hero {
-  background: radial-gradient(circle at top right, rgba(34,211,238,.22), transparent 45%), var(--card);
+.premiumCard {
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
 }
 
-h1, h2, h3 { margin: 0 0 .5rem; }
-p { margin: 0 0 .8rem; color: var(--muted); }
-ul { margin: 0; padding-left: 1rem; display: grid; gap: .35rem; }
-label { display: grid; gap: .35rem; margin: .6rem 0; font-weight: 600; }
-input, select, textarea, button {
-  width: 100%;
-  border-radius: 10px;
-  border: 1px solid #334155;
-  background: var(--soft);
-  color: var(--text);
-  padding: .7rem .8rem;
-  font: inherit;
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  color: #7e8ca8;
+  font-weight: 700;
 }
+
+.primaryButton,
 button {
-  cursor: pointer;
-  border-color: #0891b2;
-  background: linear-gradient(180deg, #0891b2, #0e7490);
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  background: var(--card);
+  color: var(--text);
 }
-button:disabled { opacity: .45; cursor: not-allowed; }
+
+.primaryButton {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  font-weight: 700;
+}
+
+.ghostButton {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: #cad8ff;
+}
+
+button:disabled {
+  opacity: 0.45;
+}
+
+.cleanList {
+  display: grid;
+  gap: 0.65rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.cleanList li,
+.exerciseLine {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.3rem;
+  background: #fbfcff;
+}
+
+.cleanList li span,
+.exerciseLine span {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.metricRow {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.metricRow div {
+  background: var(--bg-soft);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.metricRow strong {
+  font-size: 1.15rem;
+}
+
+.chipRow {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.chipButton {
+  width: auto;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 0.5rem 0.9rem;
+}
+
+.chipButton.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem 0.8rem;
+  background: white;
+  color: var(--text);
+}
+
+textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.guidedPanel {
+  gap: 0.9rem;
+}
+
+.sectionHead {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.exerciseTopRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pill {
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.3rem 0.65rem;
+  background: #eaf1ff;
+  color: #3054c4;
+}
+
+.pill.ghost {
+  background: #f3f5fb;
+  color: #637397;
+}
+
+.chargeBox {
+  border: 1px solid #c9d8ff;
+  background: #f2f6ff;
+  border-radius: 14px;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.chargeBox strong {
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.chargeBox small {
+  color: #5f6e8a;
+  font-weight: 600;
+}
+
+.bigInput {
+  font-size: 1.35rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.repsQuickActions,
+.intensityRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.choiceButton.active {
+  background: #dce7ff;
+  border-color: #b2c7ff;
+  color: #213f9f;
+}
+
+.fieldLabel {
+  color: #506081;
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+
+.restBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #c8f1e6;
+  background: #ecfff8;
+  color: #0f7f60;
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+}
+
+.restBanner strong {
+  font-size: 1.25rem;
+}
 
 .inlineActions {
   display: grid;
-  gap: .5rem;
+  gap: 0.5rem;
+}
+
+.inlineActions.twoCols {
   grid-template-columns: 1fr;
 }
 
-.exerciseCard, .restCard {
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: .8rem;
-  margin: .8rem 0;
-  background: rgba(17, 24, 39, 0.55);
-}
-
-.timer {
-  font-size: 1.8rem;
-  font-weight: 700;
-  letter-spacing: .05em;
+.summaryPanel {
+  background: #f9fbff;
 }
 
 .fileInputLabel {
-  display: inline-grid;
-  gap: .4rem;
-  width: 100%;
+  display: grid;
+  gap: 0.4rem;
 }
 
-@media (min-width: 680px) {
-  .inlineActions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media (min-width: 768px) {
+  .appShell {
+    padding-bottom: 1.5rem;
+  }
+
+  .tabBar {
+    position: static;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    background: transparent;
+    border-top: none;
+    padding: 0;
+  }
+
+  .dashboardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboardGrid > :first-child {
+    grid-column: span 2;
+  }
+
+  .inlineActions.twoCols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
