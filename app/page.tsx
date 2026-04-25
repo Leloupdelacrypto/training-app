@@ -3,21 +3,39 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataTools } from "@/components/DataTools";
 import { GuidedSession } from "@/components/GuidedSession";
-import { recommanderCharge } from "@/lib/progression";
+import { recommanderObjectif, volumeEstime } from "@/lib/progression";
 import { chargerDonnees, getDonneesInitiales, sauvegarderDonnees } from "@/lib/storage";
-import { DonneesApp, JourProgramme, SessionEnregistree } from "@/lib/types";
+import { DonneesApp, JourProgramme, MesureEntry } from "@/lib/types";
 
 type Onglet = "accueil" | "seance" | "programme" | "historique" | "progression" | "mesures" | "reglages";
 
 const navigation: { id: Onglet; label: string }[] = [
   { id: "accueil", label: "Accueil" },
-  { id: "seance", label: "Séance du jour" },
+  { id: "seance", label: "Séance" },
   { id: "programme", label: "Programme" },
   { id: "historique", label: "Historique" },
   { id: "progression", label: "Progression" },
   { id: "mesures", label: "Mesures" },
   { id: "reglages", label: "Réglages" }
 ];
+
+function movingAverage7(values: { dateISO: string; value: number }[]) {
+  return values.map((item, index) => {
+    const start = Math.max(0, index - 6);
+    const window = values.slice(start, index + 1);
+    return {
+      dateISO: item.dateISO,
+      value: window.reduce((acc, current) => acc + current.value, 0) / window.length
+    };
+  });
+}
+
+function tendance(values: number[]): string {
+  if (values.length < 2) return "donnée insuffisante";
+  const delta = values[values.length - 1] - values[0];
+  if (Math.abs(delta) < 0.2) return "stable";
+  return delta < 0 ? "en baisse" : "en hausse";
+}
 
 export default function Page() {
   const [data, setData] = useState<DonneesApp>(getDonneesInitiales());
@@ -30,8 +48,7 @@ export default function Page() {
     if (!jourId && loaded.programme.jours[0]) {
       setJourId(loaded.programme.jours[0].id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [jourId]);
 
   useEffect(() => {
     sauvegarderDonnees(data);
@@ -49,50 +66,77 @@ export default function Page() {
     return data.programme.jours[offset];
   }, [data.historique.length, data.programme.jours]);
 
+  const sessionsSemaine = useMemo(() => {
+    const now = new Date();
+    const last7 = new Date(now);
+    last7.setDate(now.getDate() - 7);
+    return data.historique.filter((session) => new Date(session.dateISO) >= last7).length;
+  }, [data.historique]);
+
+  const exoMap = useMemo(() => new Map(data.programme.jours.flatMap((j) => j.exercices).map((exo) => [exo.id, exo])), [data.programme.jours]);
+
   const exercicesAugmenter = useMemo(() => {
-    if (!jour) return [];
-    return jour.exercices
-      .map((exercice) => {
-        const reco = recommanderCharge(exercice, {
-          exerciceId: exercice.id,
-          repsRealisees: exercice.repsCible,
-          intensite: "facile"
-        });
-        return { nom: exercice.nom, base: exercice.chargeKg, recommandee: reco };
+    if (!derniereSession) return [];
+    return derniereSession.resultats
+      .map((resultat) => {
+        const ex = exoMap.get(resultat.exerciceId);
+        if (!ex) return null;
+        const objectif = recommanderObjectif(ex, resultat);
+        return { nom: ex.nom, actuel: ex.chargeKg, cible: objectif.chargeCibleKg, raison: objectif.recommandation };
       })
-      .filter((item) => item.recommandee > item.base)
-      .slice(0, 3);
-  }, [jour]);
+      .filter((item): item is { nom: string; actuel: number; cible: number; raison: string } => item !== null)
+      .filter((item) => item.cible > item.actuel)
+      .slice(0, 4);
+  }, [derniereSession, exoMap]);
 
   const recordsRecents = useMemo(() => {
-    if (!derniereSession || !jour) return [];
-    return derniereSession.resultats
-      .map((r) => {
-        const ex = data.programme.jours
-          .flatMap((j) => j.exercices)
-          .find((item) => item.id === r.exerciceId);
+    return data.historique.slice(0, 5)
+      .flatMap((session) => session.resultats.map((r) => ({ r, sessionDate: session.dateISO })))
+      .map(({ r, sessionDate }) => {
+        const ex = exoMap.get(r.exerciceId);
         if (!ex) return null;
-        const repsNum = Number.parseInt(r.repsRealisees, 10);
-        if (Number.isNaN(repsNum)) return null;
-        return { nom: ex.nom, score: repsNum * ex.chargeKg };
+        return { nom: ex.nom, volume: volumeEstime(ex, r), date: sessionDate };
       })
-      .filter((item): item is { nom: string; score: number } => item !== null)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
-  }, [data.programme.jours, derniereSession, jour]);
+      .filter((item): item is { nom: string; volume: number; date: string } => Boolean(item))
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 4);
+  }, [data.historique, exoMap]);
 
-  function onSessionDone(session: SessionEnregistree) {
+  const poidsSerie = useMemo(() => data.mesuresHistorique.filter((m) => m.poidsKg).map((m) => ({ dateISO: m.dateISO, value: m.poidsKg as number })), [data.mesuresHistorique]);
+  const tailleSerie = useMemo(() => data.mesuresHistorique.filter((m) => m.tourTailleCm).map((m) => ({ dateISO: m.dateISO, value: m.tourTailleCm as number })), [data.mesuresHistorique]);
+  const poidsMoyenne7 = useMemo(() => movingAverage7(poidsSerie), [poidsSerie]);
+  const tailleMoyenne7 = useMemo(() => movingAverage7(tailleSerie), [tailleSerie]);
+
+  function onSessionDone(session: DonneesApp["historique"][number]) {
     setData((prev) => ({ ...prev, historique: [session, ...prev.historique] }));
     setOnglet("accueil");
+  }
+
+  function ajouterMesure(partial: Partial<MesureEntry>) {
+    const entry: MesureEntry = {
+      dateISO: new Date().toISOString(),
+      poidsKg: partial.poidsKg ?? data.mesures.poidsKg,
+      tourTailleCm: partial.tourTailleCm ?? data.mesures.tourTailleCm
+    };
+
+    setData((prev) => ({
+      ...prev,
+      mesures: {
+        poidsKg: entry.poidsKg,
+        tourTailleCm: entry.tourTailleCm,
+        dateISO: entry.dateISO
+      },
+      mesuresHistorique: [...prev.mesuresHistorique, entry].slice(-90)
+    }));
   }
 
   function renderAccueil() {
     return (
       <section className="dashboardGrid">
         <article className="panel premiumCard">
-          <p className="eyebrow">Prochaine séance recommandée</p>
+          <p className="eyebrow">Coach du jour</p>
           <h2>{prochaineSeance?.titre}</h2>
-          <p className="mutedText">Focus : {prochaineSeance?.focus}</p>
+          <p className="mutedText">Focus: {prochaineSeance?.focus}</p>
           <button type="button" className="primaryButton" onClick={() => { setJourId(prochaineSeance.id); setOnglet("seance"); }}>
             Démarrer la séance
           </button>
@@ -105,49 +149,37 @@ export default function Page() {
               <h3>{data.programme.jours.find((j) => j.id === derniereSession.jourId)?.titre ?? derniereSession.jourId}</h3>
               <p className="mutedText">{new Date(derniereSession.dateISO).toLocaleDateString("fr-FR")} · {Math.round(derniereSession.dureeSec / 60)} min</p>
             </>
-          ) : (
-            <p className="mutedText">Aucune séance enregistrée pour le moment.</p>
-          )}
+          ) : <p className="mutedText">Aucune séance enregistrée.</p>}
         </article>
 
         <article className="panel">
           <p className="eyebrow">Exercices à augmenter</p>
-          <ul className="cleanList">
-            {exercicesAugmenter.map((item) => (
-              <li key={item.nom}>
+          <div className="timelineCards">
+            {exercicesAugmenter.length === 0 ? <p className="mutedText">Continue les séances pour obtenir des recommandations précises.</p> : exercicesAugmenter.map((item) => (
+              <article className="timelineCard" key={item.nom}>
                 <strong>{item.nom}</strong>
-                <span>{item.base} → {item.recommandee} kg</span>
-              </li>
+                <p>{item.actuel} → {item.cible} kg</p>
+              </article>
             ))}
-          </ul>
+          </div>
         </article>
 
         <article className="panel">
           <p className="eyebrow">Records récents</p>
-          <ul className="cleanList">
-            {recordsRecents.length === 0 ? (
-              <li><span className="mutedText">Les records apparaîtront après ta première séance.</span></li>
-            ) : recordsRecents.map((r) => (
-              <li key={r.nom}>
-                <strong>{r.nom}</strong>
-                <span>{r.score} points charge × reps</span>
-              </li>
+          <div className="timelineCards">
+            {recordsRecents.map((record) => (
+              <article className="timelineCard" key={`${record.nom}-${record.date}`}>
+                <strong>{record.nom}</strong>
+                <p>{Math.round(record.volume)} pts volume · {new Date(record.date).toLocaleDateString("fr-FR")}</p>
+              </article>
             ))}
-          </ul>
+          </div>
         </article>
 
         <article className="panel">
-          <p className="eyebrow">Résumé mesures</p>
-          <div className="metricRow">
-            <div>
-              <span>Poids</span>
-              <strong>{data.mesures.poidsKg ? `${data.mesures.poidsKg} kg` : "Non renseigné"}</strong>
-            </div>
-            <div>
-              <span>Tour de taille</span>
-              <strong>{data.mesures.tourTailleCm ? `${data.mesures.tourTailleCm} cm` : "Non renseigné"}</strong>
-            </div>
-          </div>
+          <p className="eyebrow">Activité</p>
+          <h3>{sessionsSemaine} séances cette semaine</h3>
+          <p className="mutedText">Poids: {data.mesures.poidsKg ? `${data.mesures.poidsKg} kg` : "non renseigné"} · Taille: {data.mesures.tourTailleCm ? `${data.mesures.tourTailleCm} cm` : "non renseignée"}</p>
         </article>
       </section>
     );
@@ -157,26 +189,20 @@ export default function Page() {
     return (
       <section className="panel">
         <h2>{data.programme.nom}</h2>
-        <p className="mutedText">Sélectionne un jour pour suivre la séance guidée.</p>
+        <p className="mutedText">Programme conservé, affichage premium en cartes.</p>
         <div className="chipRow">
           {data.programme.jours.map((j) => (
-            <button
-              key={j.id}
-              type="button"
-              className={`chipButton ${j.id === jour?.id ? "active" : ""}`}
-              onClick={() => setJourId(j.id)}
-            >
+            <button key={j.id} type="button" className={`chipButton ${j.id === jour?.id ? "active" : ""}`} onClick={() => setJourId(j.id)}>
               {j.titre.replace("Jour ", "J")}
             </button>
           ))}
         </div>
 
-        <div className="stackCards">
+        <div className="timelineCards">
           {jour?.exercices.map((e) => (
-            <article className="exerciseLine" key={e.id}>
+            <article className="timelineCard" key={e.id}>
               <strong>{e.nom}</strong>
-              <p>{e.series} séries · {e.repsCible}</p>
-              <span>{e.chargeKg} kg</span>
+              <p>{e.series} séries · {e.repsCible} · {e.chargeKg} kg</p>
             </article>
           ))}
         </div>
@@ -187,51 +213,39 @@ export default function Page() {
   function renderHistorique() {
     return (
       <section className="panel">
-        <h2>Historique</h2>
-        {data.historique.length === 0 ? (
-          <p className="mutedText">Aucune séance enregistrée.</p>
-        ) : (
-          <div className="stackCards">
-            {data.historique.map((session) => {
-              const jourTrouve = data.programme.jours.find((j) => j.id === session.jourId);
-              return (
-                <article className="exerciseLine" key={session.id}>
-                  <strong>{jourTrouve?.titre ?? session.jourId}</strong>
-                  <p>{new Date(session.dateISO).toLocaleDateString("fr-FR")}</p>
-                  <span>{Math.round(session.dureeSec / 60)} min</span>
-                </article>
-              );
-            })}
-          </div>
-        )}
+        <h2>Historique & tendances</h2>
+        <div className="timelineCards">
+          {data.historique.length === 0 ? <p className="mutedText">Aucune séance enregistrée.</p> : data.historique.map((session) => {
+            const jourTrouve = data.programme.jours.find((j) => j.id === session.jourId);
+            return (
+              <article className="timelineCard" key={session.id}>
+                <strong>{jourTrouve?.titre ?? session.jourId}</strong>
+                <p>{new Date(session.dateISO).toLocaleDateString("fr-FR")} · {Math.round(session.dureeSec / 60)} min · {session.resultats.length} exos</p>
+              </article>
+            );
+          })}
+        </div>
       </section>
     );
   }
 
   function renderProgression() {
-    const derniere = data.historique[0];
-    if (!derniere) {
-      return (
-        <section className="panel">
-          <h2>Progression</h2>
-          <p className="mutedText">Termine une séance pour afficher les recommandations de charge.</p>
-        </section>
-      );
-    }
+    const ids = Array.from(new Set(data.historique.flatMap((s) => s.resultats.map((r) => r.exerciceId))));
 
     return (
       <section className="panel">
-        <h2>Progression suggérée</h2>
-        <div className="stackCards">
-          {derniere.resultats.map((resultat) => {
-            const ex = data.programme.jours.flatMap((j) => j.exercices).find((item) => item.id === resultat.exerciceId);
+        <h2>Progression intelligente</h2>
+        <div className="timelineCards">
+          {ids.length === 0 ? <p className="mutedText">Termine une séance pour débloquer les recommandations.</p> : ids.map((id) => {
+            const ex = exoMap.get(id);
             if (!ex) return null;
-            const suggestion = recommanderCharge(ex, resultat);
+            const resultats = data.historique.flatMap((session) => session.resultats.filter((r) => r.exerciceId === id)).slice(0, 2);
+            const objectif = recommanderObjectif(ex, resultats[0], resultats[1]);
             return (
-              <article className="exerciseLine" key={resultat.exerciceId}>
+              <article className="timelineCard" key={id}>
                 <strong>{ex.nom}</strong>
-                <p>RPE: {resultat.intensite}</p>
-                <span>{ex.chargeKg} → {suggestion} kg</span>
+                <p>{ex.chargeKg} → {objectif.chargeCibleKg} kg · cible: {objectif.repsCible}</p>
+                <span className="mutedText">{objectif.recommandation}</span>
               </article>
             );
           })}
@@ -241,23 +255,19 @@ export default function Page() {
   }
 
   function renderMesures() {
+    const poidsValues = poidsSerie.map((p) => p.value);
+    const tailleValues = tailleSerie.map((p) => p.value);
+
     return (
       <section className="panel">
-        <h2>Mesures</h2>
-        <p className="mutedText">Mets à jour tes mesures pour suivre ton évolution.</p>
+        <h2>Mesures & tendance</h2>
+        <p className="mutedText">Moyenne mobile 7 jours incluse quand plusieurs entrées existent.</p>
         <label>
           Poids (kg)
           <input
             type="number"
             value={data.mesures.poidsKg ?? ""}
-            onChange={(e) => setData((prev) => ({
-              ...prev,
-              mesures: {
-                ...prev.mesures,
-                poidsKg: e.target.value ? Number(e.target.value) : undefined,
-                dateISO: new Date().toISOString()
-              }
-            }))}
+            onChange={(e) => ajouterMesure({ poidsKg: e.target.value ? Number(e.target.value) : undefined })}
           />
         </label>
 
@@ -266,16 +276,22 @@ export default function Page() {
           <input
             type="number"
             value={data.mesures.tourTailleCm ?? ""}
-            onChange={(e) => setData((prev) => ({
-              ...prev,
-              mesures: {
-                ...prev.mesures,
-                tourTailleCm: e.target.value ? Number(e.target.value) : undefined,
-                dateISO: new Date().toISOString()
-              }
-            }))}
+            onChange={(e) => ajouterMesure({ tourTailleCm: e.target.value ? Number(e.target.value) : undefined })}
           />
         </label>
+
+        <div className="metricRow">
+          <div>
+            <span>Tendance poids</span>
+            <strong>{tendance(poidsValues)}</strong>
+            <small>{poidsMoyenne7.length ? `MM7: ${poidsMoyenne7[poidsMoyenne7.length - 1].value.toFixed(1)} kg` : "MM7 indisponible"}</small>
+          </div>
+          <div>
+            <span>Tendance taille</span>
+            <strong>{tendance(tailleValues)}</strong>
+            <small>{tailleMoyenne7.length ? `MM7: ${tailleMoyenne7[tailleMoyenne7.length - 1].value.toFixed(1)} cm` : "MM7 indisponible"}</small>
+          </div>
+        </div>
       </section>
     );
   }
@@ -288,22 +304,9 @@ export default function Page() {
   return (
     <main className="appShell">
       <header className="topBar">
-        <h1>Training App</h1>
-        <p>Suivi d&apos;entraînement intelligent, sans backend.</p>
+        <h1>Training App Premium</h1>
+        <p>Carnet d&apos;entraînement mobile-first, utilisable pendant la séance.</p>
       </header>
-
-      <nav className="tabBar" aria-label="Navigation principale">
-        {navigation.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`tabButton ${onglet === item.id ? "active" : ""}`}
-            onClick={() => setOnglet(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
 
       <section className="contentArea">
         {onglet === "accueil" && renderAccueil()}
@@ -314,6 +317,14 @@ export default function Page() {
         {onglet === "mesures" && renderMesures()}
         {onglet === "reglages" && <DataTools data={data} onImport={setData} />}
       </section>
+
+      <nav className="tabBar" aria-label="Navigation principale">
+        {navigation.map((item) => (
+          <button key={item.id} type="button" className={`tabButton ${onglet === item.id ? "active" : ""}`} onClick={() => setOnglet(item.id)}>
+            {item.label}
+          </button>
+        ))}
+      </nav>
     </main>
   );
 }
