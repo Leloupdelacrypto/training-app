@@ -147,6 +147,7 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
       </header>
 
       <article className="guidedExerciseCard">
+        <div className="exerciseIllustration large" aria-hidden="true">🎯</div>
         <h2>{exerciceCourant.nom}</h2>
         <p className="mutedText">Objectif série {Math.min(serieActuelleIndex + 1, exerciceCourant.series)}/{exerciceCourant.series} · {exerciceCourant.repsCible} reps</p>
 
