@@ -1,0 +1,88 @@
+:root {
+  --bg: #0f172a;
+  --card: #111827;
+  --soft: #1f2937;
+  --text: #f3f4f6;
+  --muted: #cbd5e1;
+  --primary: #22d3ee;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  background: linear-gradient(180deg, #020617 0%, #0f172a 100%);
+  color: var(--text);
+}
+
+.container {
+  width: min(820px, 100%);
+  margin: 0 auto;
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.panel {
+  background: color-mix(in srgb, var(--card), black 8%);
+  border: 1px solid #1e293b;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+
+.hero {
+  background: radial-gradient(circle at top right, rgba(34,211,238,.22), transparent 45%), var(--card);
+}
+
+h1, h2, h3 { margin: 0 0 .5rem; }
+p { margin: 0 0 .8rem; color: var(--muted); }
+ul { margin: 0; padding-left: 1rem; display: grid; gap: .35rem; }
+label { display: grid; gap: .35rem; margin: .6rem 0; font-weight: 600; }
+input, select, textarea, button {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: var(--soft);
+  color: var(--text);
+  padding: .7rem .8rem;
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  border-color: #0891b2;
+  background: linear-gradient(180deg, #0891b2, #0e7490);
+}
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+.inlineActions {
+  display: grid;
+  gap: .5rem;
+  grid-template-columns: 1fr;
+}
+
+.exerciseCard, .restCard {
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: .8rem;
+  margin: .8rem 0;
+  background: rgba(17, 24, 39, 0.55);
+}
+
+.timer {
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+
+.fileInputLabel {
+  display: inline-grid;
+  gap: .4rem;
+  width: 100%;
+}
+
+@media (min-width: 680px) {
+  .inlineActions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
