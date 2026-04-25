@@ -6,19 +6,21 @@ import { GuidedSession } from "@/components/GuidedSession";
 import { analyserCoachLocal, CoachBadge } from "@/lib/coach";
 import { recommanderObjectif, volumeEstime } from "@/lib/progression";
 import { chargerDonnees, getDonneesInitiales, sauvegarderDonnees } from "@/lib/storage";
-import { DonneesApp, JourProgramme, MesureEntry } from "@/lib/types";
+import { DonneesApp, Exercice, JourProgramme, MesureEntry } from "@/lib/types";
 
 type Onglet = "accueil" | "seance" | "programme" | "coach" | "historique" | "progression" | "mesures" | "reglages";
 
+type MuscleGroup = "push" | "pull" | "legs" | "core" | "full";
+
 const navigation: { id: Onglet; label: string; icon: string }[] = [
-  { id: "accueil", label: "Accueil", icon: "🏠" },
-  { id: "seance", label: "Séance", icon: "🏋️" },
-  { id: "programme", label: "Programme", icon: "📚" },
-  { id: "coach", label: "Coach", icon: "🧠" },
-  { id: "historique", label: "Historique", icon: "🕒" },
-  { id: "progression", label: "Progression", icon: "📈" },
-  { id: "mesures", label: "Mesures", icon: "📏" },
-  { id: "reglages", label: "Réglages", icon: "⚙️" }
+  { id: "accueil", label: "Accueil", icon: "◉" },
+  { id: "seance", label: "Séance", icon: "▶" },
+  { id: "programme", label: "Exercices", icon: "◈" },
+  { id: "coach", label: "Coach", icon: "✦" },
+  { id: "historique", label: "Historique", icon: "◷" },
+  { id: "progression", label: "Progress", icon: "▴" },
+  { id: "mesures", label: "Mesures", icon: "◎" },
+  { id: "reglages", label: "Données", icon: "⚙" }
 ];
 
 const badgeClassMap: Record<CoachBadge, string> = {
@@ -47,14 +49,37 @@ function tendance(values: number[]): string {
   return delta < 0 ? "en baisse" : "en hausse";
 }
 
+function inferMuscleGroup(exercice: Exercice): MuscleGroup {
+  const nom = exercice.nom.toLowerCase();
+  if (["squat", "fentes", "roumain", "hip", "jambe"].some((k) => nom.includes(k))) return "legs";
+  if (["rowing", "curl", "dos", "menton"].some((k) => nom.includes(k))) return "pull";
+  if (["développé", "triceps", "pector", "militaire"].some((k) => nom.includes(k))) return "push";
+  if (["crunch", "gainage", "farmer", "abdo"].some((k) => nom.includes(k))) return "core";
+  return "full";
+}
+
+function visualForGroup(group: MuscleGroup) {
+  const map = {
+    push: { icon: "⬢", label: "Push", className: "accentPush" },
+    pull: { icon: "◬", label: "Pull", className: "accentPull" },
+    legs: { icon: "◪", label: "Jambes", className: "accentLegs" },
+    core: { icon: "◍", label: "Core", className: "accentCore" },
+    full: { icon: "✷", label: "Full", className: "accentFull" }
+  } as const;
+  return map[group];
+}
+
 export default function Page() {
   const [data, setData] = useState<DonneesApp>(getDonneesInitiales());
   const [jourId, setJourId] = useState(data.programme.jours[0]?.id ?? "");
   const [onglet, setOnglet] = useState<Onglet>("accueil");
+  const [prenom, setPrenom] = useState("");
 
   useEffect(() => {
     const loaded = chargerDonnees();
     setData(loaded);
+    const storedPrenom = window.localStorage.getItem("training-app-prenom") ?? "";
+    setPrenom(storedPrenom);
     if (!jourId && loaded.programme.jours[0]) {
       setJourId(loaded.programme.jours[0].id);
     }
@@ -63,6 +88,10 @@ export default function Page() {
   useEffect(() => {
     sauvegarderDonnees(data);
   }, [data]);
+
+  useEffect(() => {
+    window.localStorage.setItem("training-app-prenom", prenom);
+  }, [prenom]);
 
   const jour = useMemo(
     () => data.programme.jours.find((j) => j.id === jourId) ?? data.programme.jours[0],
@@ -118,6 +147,10 @@ export default function Page() {
   const tailleMoyenne7 = useMemo(() => movingAverage7(tailleSerie), [tailleSerie]);
   const coachInsights = useMemo(() => analyserCoachLocal(data), [data]);
 
+  const insightDuJour = coachInsights[0]?.conseil ?? "Ton focus du jour : exécution propre et tempo contrôlé sur les séries clés.";
+
+  const statutSemaine = sessionsSemaine >= 4 ? "Excellent rythme" : sessionsSemaine >= 2 ? "Rythme correct" : "Relance conseillée";
+
   function onSessionDone(session: DonneesApp["historique"][number]) {
     setData((prev) => ({ ...prev, historique: [session, ...prev.historique] }));
     setOnglet("accueil");
@@ -144,13 +177,28 @@ export default function Page() {
   function renderAccueil() {
     return (
       <section className="dashboardGrid">
-        <article className="panel premiumCard">
-          <p className="eyebrow">Coach du jour</p>
-          <h2>{prochaineSeance?.titre}</h2>
-          <p className="mutedText">Focus: {prochaineSeance?.focus}</p>
-          <button type="button" className="primaryButton" onClick={() => { setJourId(prochaineSeance.id); setOnglet("seance"); }}>
-            Démarrer la séance
-          </button>
+        <article className="panel heroCard">
+          <p className="eyebrow">Dashboard coach</p>
+          <h2>{prenom ? `Salut ${prenom}, prêt·e à performer ?` : "Prêt·e pour une séance premium ?"}</h2>
+          <p className="mutedText">Séance recommandée: <strong>{prochaineSeance?.titre}</strong> · Focus {prochaineSeance?.focus}</p>
+          <div className="heroActions">
+            <button type="button" className="primaryButton" onClick={() => { if (prochaineSeance) setJourId(prochaineSeance.id); setOnglet("seance"); }}>
+              Démarrer la séance
+            </button>
+            <button type="button" className="ghostButton" onClick={() => setOnglet("programme")}>Voir les exercices</button>
+          </div>
+        </article>
+
+        <article className="panel statPanel">
+          <p className="eyebrow">Rythme</p>
+          <h3>{sessionsSemaine} séances / 7 jours</h3>
+          <p className="mutedText">{statutSemaine}</p>
+        </article>
+
+        <article className="panel statPanel">
+          <p className="eyebrow">Insight du jour</p>
+          <h3>Action simple</h3>
+          <p>{insightDuJour}</p>
         </article>
 
         <article className="panel">
@@ -164,33 +212,27 @@ export default function Page() {
         </article>
 
         <article className="panel">
-          <p className="eyebrow">Exercices à augmenter</p>
-          <div className="timelineCards">
-            {exercicesAugmenter.length === 0 ? <p className="mutedText">Continue les séances pour obtenir des recommandations précises.</p> : exercicesAugmenter.map((item) => (
-              <article className="timelineCard" key={item.nom}>
-                <strong>{item.nom}</strong>
-                <p>{item.actuel} → {item.cible} kg</p>
-              </article>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel">
           <p className="eyebrow">Records récents</p>
-          <div className="timelineCards">
+          <div className="timelineCards compactCards">
             {recordsRecents.map((record) => (
               <article className="timelineCard" key={`${record.nom}-${record.date}`}>
                 <strong>{record.nom}</strong>
-                <p>{Math.round(record.volume)} pts volume · {new Date(record.date).toLocaleDateString("fr-FR")}</p>
+                <p>{Math.round(record.volume)} pts volume</p>
+                <small>{new Date(record.date).toLocaleDateString("fr-FR")}</small>
               </article>
             ))}
           </div>
         </article>
 
         <article className="panel">
-          <p className="eyebrow">Activité</p>
-          <h3>{sessionsSemaine} séances cette semaine</h3>
-          <p className="mutedText">Poids: {data.mesures.poidsKg ? `${data.mesures.poidsKg} kg` : "non renseigné"} · Taille: {data.mesures.tourTailleCm ? `${data.mesures.tourTailleCm} cm` : "non renseignée"}</p>
+          <p className="eyebrow">Progression / alerte</p>
+          {exercicesAugmenter.length === 0 ? <p className="mutedText">Maintiens le rythme pour débloquer des progressions personnalisées.</p> : exercicesAugmenter.map((item) => (
+            <article className="timelineCard" key={item.nom}>
+              <strong>{item.nom}</strong>
+              <p>{item.actuel} → {item.cible} kg</p>
+              <small>{item.raison}</small>
+            </article>
+          ))}
         </article>
       </section>
     );
@@ -200,7 +242,7 @@ export default function Page() {
     return (
       <section className="panel">
         <h2>{data.programme.nom}</h2>
-        <p className="mutedText">Programme conservé, affichage premium en cartes.</p>
+        <p className="mutedText">Programme inchangé, présenté en cartes visuelles par groupe musculaire.</p>
         <div className="chipRow">
           {data.programme.jours.map((j) => (
             <button key={j.id} type="button" className={`chipButton ${j.id === jour?.id ? "active" : ""}`} onClick={() => setJourId(j.id)}>
@@ -210,15 +252,33 @@ export default function Page() {
         </div>
 
         <div className="timelineCards">
-          {jour?.exercices.map((e) => (
-            <article className="timelineCard exerciseCard" key={e.id}>
-              <div className="exerciseIllustration" aria-hidden="true">🏋️‍♂️</div>
-              <div>
-                <strong>{e.nom}</strong>
-                <p>{e.series} séries · {e.repsCible} · {e.chargeKg} kg</p>
-              </div>
-            </article>
-          ))}
+          {jour?.exercices.map((e) => {
+            const group = inferMuscleGroup(e);
+            const visual = visualForGroup(group);
+            const lastResult = data.historique
+              .flatMap((session) => session.resultats)
+              .find((result) => result.exerciceId === e.id);
+            const objectif = recommanderObjectif(e, lastResult);
+            const badge = objectif.chargeCibleKg > e.chargeKg ? "progression" : objectif.chargeCibleKg < e.chargeKg ? "fatigue" : "stable";
+
+            return (
+              <article className={`timelineCard exercisePremiumCard ${visual.className}`} key={e.id}>
+                <div className="exerciseIllustration" aria-hidden="true">{visual.icon}</div>
+                <div className="exerciseMain">
+                  <div>
+                    <strong>{e.nom}</strong>
+                    <p className="mutedText">{visual.label} · {e.series} séries · {e.repsCible}</p>
+                  </div>
+                  <div className="exerciseMetrics">
+                    <span>Dernière perf: {lastResult?.repsRealisees ?? "-"}</span>
+                    <span>Charge conseillée: {objectif.chargeCibleKg} kg</span>
+                    <span>Objectif du jour: {objectif.repsCible}</span>
+                  </div>
+                </div>
+                <span className={`statusBadge ${badge}`}>{badge}</span>
+              </article>
+            );
+          })}
         </div>
       </section>
     );
@@ -227,8 +287,8 @@ export default function Page() {
   function renderCoach() {
     return (
       <section className="panel">
-        <h2>Coach local (14 jours)</h2>
-        <p className="mutedText">Analyse locale sans API externe. Conseils rapides à appliquer dès la prochaine séance.</p>
+        <h2>Coach & insights</h2>
+        <p className="mutedText">Conseils courts, actionnables, orientés prochaine séance.</p>
         <div className="timelineCards">
           {coachInsights.map((insight) => (
             <article className="timelineCard coachCard" key={insight.id}>
@@ -243,6 +303,7 @@ export default function Page() {
                 </div>
               </div>
               <p>{insight.conseil}</p>
+              <small className="mutedText">À faire aujourd&apos;hui: choisis un exercice prioritaire et applique ce conseil sur toutes les séries.</small>
             </article>
           ))}
         </div>
@@ -253,14 +314,15 @@ export default function Page() {
   function renderHistorique() {
     return (
       <section className="panel">
-        <h2>Historique & tendances</h2>
+        <h2>Historique</h2>
         <div className="timelineCards">
           {data.historique.length === 0 ? <p className="mutedText">Aucune séance enregistrée.</p> : data.historique.map((session) => {
             const jourTrouve = data.programme.jours.find((j) => j.id === session.jourId);
             return (
               <article className="timelineCard" key={session.id}>
                 <strong>{jourTrouve?.titre ?? session.jourId}</strong>
-                <p>{new Date(session.dateISO).toLocaleDateString("fr-FR")} · {Math.round(session.dureeSec / 60)} min · {session.resultats.length} exos</p>
+                <p>{new Date(session.dateISO).toLocaleDateString("fr-FR")} · {Math.round(session.dureeSec / 60)} min</p>
+                <small>{session.resultats.length} exercices validés</small>
               </article>
             );
           })}
@@ -274,16 +336,18 @@ export default function Page() {
 
     return (
       <section className="panel">
-        <h2>Progression intelligente</h2>
+        <h2>Progression visuelle</h2>
         <div className="timelineCards">
-          {ids.length === 0 ? <p className="mutedText">Termine une séance pour débloquer les recommandations.</p> : ids.map((id) => {
+          {ids.length === 0 ? <p className="mutedText">Termine une séance pour débloquer les tendances.</p> : ids.map((id) => {
             const ex = exoMap.get(id);
             if (!ex) return null;
-            const resultats = data.historique.flatMap((session) => session.resultats.filter((r) => r.exerciceId === id)).slice(0, 2);
+            const resultats = data.historique.flatMap((session) => session.resultats.filter((r) => r.exerciceId === id)).slice(0, 4);
             const objectif = recommanderObjectif(ex, resultats[0], resultats[1]);
+            const trend = resultats.length > 1 ? "hausse" : "stable";
             return (
               <article className="timelineCard" key={id}>
                 <strong>{ex.nom}</strong>
+                <div className="miniTrend" aria-hidden="true"><span /><span /><span className={trend === "hausse" ? "up" : ""} /></div>
                 <p>{ex.chargeKg} → {objectif.chargeCibleKg} kg · cible: {objectif.repsCible}</p>
                 <span className="mutedText">{objectif.recommandation}</span>
               </article>
@@ -301,7 +365,6 @@ export default function Page() {
     return (
       <section className="panel">
         <h2>Mesures & tendance</h2>
-        <p className="mutedText">Moyenne mobile 7 jours incluse quand plusieurs entrées existent.</p>
         <label>
           Poids (kg)
           <input
@@ -344,8 +407,9 @@ export default function Page() {
   return (
     <main className="appShell">
       <header className="topBar">
-        <h1>Training App Premium</h1>
-        <p>Carnet d&apos;entraînement mobile-first, utilisable pendant la séance.</p>
+        <p className="eyebrow">Training App</p>
+        <h1>Coach personnel premium</h1>
+        <p className="mutedText">Design mobile immersif, progression guidée, stockage 100% local.</p>
       </header>
 
       <section className="contentArea">
@@ -356,13 +420,24 @@ export default function Page() {
         {onglet === "historique" && renderHistorique()}
         {onglet === "progression" && renderProgression()}
         {onglet === "mesures" && renderMesures()}
-        {onglet === "reglages" && <DataTools data={data} onImport={setData} />}
+        {onglet === "reglages" && (
+          <>
+            <section className="panel">
+              <h2>Profil</h2>
+              <label>
+                Prénom (optionnel)
+                <input value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Ex: Alex" />
+              </label>
+            </section>
+            <DataTools data={data} onImport={setData} />
+          </>
+        )}
       </section>
 
       <nav className="tabBar" aria-label="Navigation principale">
         {navigation.map((item) => (
           <button key={item.id} type="button" className={`tabButton ${onglet === item.id ? "active" : ""}`} onClick={() => setOnglet(item.id)}>
-            <span aria-hidden="true">{item.icon}</span>
+            <span aria-hidden="true" className="tabIcon">{item.icon}</span>
             <span>{item.label}</span>
           </button>
         ))}

@@ -47,6 +47,7 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
 
   const totalSeries = jour.exercices.reduce((acc, exercice) => acc + exercice.series, 0);
   const seriesValidees = Object.values(seriesParExercice).reduce((acc, values) => acc + values.length, 0);
+  const progression = totalSeries > 0 ? Math.round((seriesValidees / totalSeries) * 100) : 0;
 
   useEffect(() => {
     if (reposRestant <= 0) return;
@@ -116,11 +117,12 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
   }
 
   if (isCompleteView) {
+    const minutes = Math.max(1, Math.round((Date.now() - start) / 1000 / 60));
     return (
       <section className="panel sessionCompleteCard">
         <p className="eyebrow">Séance terminée</p>
-        <h2>Résumé de fin de séance</h2>
-        <p className="mutedText">{seriesValidees}/{totalSeries} séries validées.</p>
+        <h2>Excellent travail 🔥</h2>
+        <p className="mutedText">{seriesValidees}/{totalSeries} séries validées en {minutes} min.</p>
         <div className="timelineCards">
           {jour.exercices.map((exercice) => {
             const series = seriesParExercice[exercice.id] ?? [];
@@ -132,7 +134,7 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
             );
           })}
         </div>
-        <button type="button" className="primaryButton" onClick={finaliserSeance}>Enregistrer la séance</button>
+        <button type="button" className="primaryButton" onClick={finaliserSeance}>Enregistrer et continuer</button>
       </section>
     );
   }
@@ -144,12 +146,16 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
       <header className="guidedHeader">
         <p className="eyebrow">{jour.titre}</p>
         <strong>Exercice {indexExercice + 1}/{jour.exercices.length}</strong>
+        <div className="progressTrack" aria-hidden="true">
+          <div className="progressBar" style={{ width: `${progression}%` }} />
+        </div>
+        <small className="mutedText">Progression séance: {progression}%</small>
       </header>
 
       <article className="guidedExerciseCard">
-        <div className="exerciseIllustration large" aria-hidden="true">🎯</div>
+        <div className="exerciseIllustration large" aria-hidden="true">✷</div>
         <h2>{exerciceCourant.nom}</h2>
-        <p className="mutedText">Objectif série {Math.min(serieActuelleIndex + 1, exerciceCourant.series)}/{exerciceCourant.series} · {exerciceCourant.repsCible} reps</p>
+        <p className="mutedText">Série {Math.min(serieActuelleIndex + 1, exerciceCourant.series)}/{exerciceCourant.series} · cible {exerciceCourant.repsCible}</p>
 
         <div className="metricRow">
           <div>
@@ -157,19 +163,19 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
             <strong>{objectif.chargeCibleKg} kg</strong>
           </div>
           <div>
-            <span>Objectif prochaine séance</span>
+            <span>Objectif du jour</span>
             <strong>{objectif.repsCible}</strong>
           </div>
         </div>
 
         <div className="quickAdjustRow">
-          <button type="button" onClick={() => setRepsDraft((v) => Math.max(1, v - 1))}>-</button>
+          <button type="button" className="stepButton" onClick={() => setRepsDraft((v) => Math.max(1, v - 1))}>−</button>
           <div className="repValue">{repsDraft} reps</div>
-          <button type="button" onClick={() => setRepsDraft((v) => v + 1)}>+</button>
+          <button type="button" className="stepButton" onClick={() => setRepsDraft((v) => v + 1)}>+</button>
         </div>
 
         <div>
-          <p className="fieldLabel">RPE</p>
+          <p className="fieldLabel">RPE ressenti</p>
           <div className="rpeRow">
             {[6, 7, 8, 9, 10].map((rpe) => (
               <button
@@ -190,11 +196,11 @@ export function GuidedSession({ jour, onSessionDone }: GuidedSessionProps) {
       </article>
 
       <article className="restPremiumCard">
-        <p className="eyebrow">Chrono de repos</p>
+        <p className="eyebrow">Chrono repos</p>
         <strong>{String(Math.floor(reposRestant / 60)).padStart(2, "0")}:{String(reposRestant % 60).padStart(2, "0")}</strong>
         <div className="inlineActions twoCols">
           <button type="button" onClick={() => setReposRestant((v) => v + 30)}>+30 s</button>
-          <button type="button" onClick={() => setReposRestant(0)}>Passer le repos</button>
+          <button type="button" onClick={() => setReposRestant(0)}>Passer repos</button>
           <button type="button" onClick={exerciceSuivant}>Exercice suivant</button>
           <button type="button" className="ghostButton" onClick={() => setIsCompleteView(true)}>Résumé séance</button>
         </div>
