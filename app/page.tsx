@@ -10,7 +10,7 @@ import { recommanderObjectif, volumeEstime } from "@/lib/progression";
 import { chargerDonnees, getDonneesInitiales, sauvegarderDonnees } from "@/lib/storage";
 import { DonneesApp, JourProgramme, MesureEntry } from "@/lib/types";
 
-type Onglet = "accueil" | "seance" | "programme" | "coach" | "historique" | "progression" | "mesures" | "reglages";
+type Onglet = "accueil" | "seance" | "programme" | "coach" | "historique" | "progression" | "mesures" | "investissement" | "reglages";
 
 const navigation: { id: Onglet; label: string; icon: string }[] = [
   { id: "accueil", label: "Accueil", icon: "🏠" },
@@ -20,6 +20,7 @@ const navigation: { id: Onglet; label: string; icon: string }[] = [
   { id: "historique", label: "Timeline", icon: "🕒" },
   { id: "progression", label: "Progress", icon: "📈" },
   { id: "mesures", label: "Mesures", icon: "📏" },
+  { id: "investissement", label: "Invest", icon: "💰" },
   { id: "reglages", label: "Données", icon: "⚙️" }
 ];
 
@@ -61,6 +62,38 @@ export default function Page() {
   const [jourId, setJourId] = useState(data.programme.jours[0]?.id ?? "");
   const [onglet, setOnglet] = useState<Onglet>("accueil");
   const [prenom, setPrenom] = useState("");
+
+  const [invInitial, setInvInitial] = useState(5000);
+  const [invMensuel, setInvMensuel] = useState(300);
+  const [tauxAnnuel, setTauxAnnuel] = useState(7);
+  const [dureeAnnees, setDureeAnnees] = useState(10);
+
+  const projectionInvest = useMemo(() => {
+    const moisTotal = Math.max(1, Math.round(dureeAnnees * 12));
+    const tauxMensuel = tauxAnnuel / 100 / 12;
+    let capital = Math.max(0, invInitial);
+    let totalVerse = Math.max(0, invInitial);
+
+    const lignes = Array.from({ length: moisTotal }, (_, index) => {
+      const mois = index + 1;
+      const contribution = Math.max(0, invMensuel);
+      const interets = capital * tauxMensuel;
+      capital += interets + contribution;
+      totalVerse += contribution;
+
+      return {
+        mois,
+        annee: Math.ceil(mois / 12),
+        contribution,
+        interets,
+        capital,
+        totalVerse,
+        totalInterets: capital - totalVerse
+      };
+    });
+
+    return { lignes, tauxMensuel };
+  }, [dureeAnnees, invInitial, invMensuel, tauxAnnuel]);
 
   useEffect(() => {
     const loaded = chargerDonnees();
@@ -382,6 +415,72 @@ export default function Page() {
     );
   }
 
+
+  function renderInvestissement() {
+    const derniersMois = projectionInvest.lignes.slice(-12);
+    const finalLigne = projectionInvest.lignes[projectionInvest.lignes.length - 1];
+
+    return (
+      <section className="screenStack">
+        <article className="premiumCard">
+          <h2>Tableau d’investissement</h2>
+          <p className="mutedText">Simule ton intérêt composé avec investissement initial, versement mensuel et taux annuel.</p>
+          <label>
+            Investissement initial (€)
+            <input type="number" min={0} value={invInitial} onChange={(e) => setInvInitial(Number(e.target.value) || 0)} />
+          </label>
+          <label>
+            Investissement mensuel (€)
+            <input type="number" min={0} value={invMensuel} onChange={(e) => setInvMensuel(Number(e.target.value) || 0)} />
+          </label>
+          <label>
+            Taux d’intérêt annuel (%)
+            <input type="number" step="0.1" value={tauxAnnuel} onChange={(e) => setTauxAnnuel(Number(e.target.value) || 0)} />
+          </label>
+          <label>
+            Durée (années)
+            <input type="number" min={1} value={dureeAnnees} onChange={(e) => setDureeAnnees(Number(e.target.value) || 1)} />
+          </label>
+
+          <div className="metricRow">
+            <div><span>Rendement mensuel</span><strong>{(projectionInvest.tauxMensuel * 100).toFixed(3)}%</strong></div>
+            <div><span>Rendement annuel</span><strong>{tauxAnnuel.toFixed(2)}%</strong></div>
+            <div><span>Capital final</span><strong>{finalLigne?.capital.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</strong></div>
+          </div>
+          <div className="metricRow">
+            <div><span>Total investi</span><strong>{finalLigne?.totalVerse.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</strong></div>
+            <div><span>Intérêts cumulés</span><strong>{finalLigne?.totalInterets.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</strong></div>
+            <div><span>Horizon</span><strong>{dureeAnnees} ans</strong></div>
+          </div>
+        </article>
+
+        <article className="premiumCard">
+          <h3>Calculateur d’intérêt composé (12 derniers mois)</h3>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th>Mois</th><th>Année</th><th>Versement</th><th>Intérêts</th><th>Capital</th>
+                </tr>
+              </thead>
+              <tbody>
+                {derniersMois.map((ligne) => (
+                  <tr key={ligne.mois}>
+                    <td>{ligne.mois}</td>
+                    <td>{ligne.annee}</td>
+                    <td>{ligne.contribution.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</td>
+                    <td>{ligne.interets.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</td>
+                    <td><b>{ligne.capital.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</b></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    );
+  }
+
   function renderSeance(jourSeance: JourProgramme | undefined) {
     if (!jourSeance) return null;
     return <GuidedSession jour={jourSeance} onSessionDone={onSessionDone} />;
@@ -403,6 +502,7 @@ export default function Page() {
         {onglet === "historique" && renderHistorique()}
         {onglet === "progression" && renderProgression()}
         {onglet === "mesures" && renderMesures()}
+        {onglet === "investissement" && renderInvestissement()}
         {onglet === "reglages" && (
           <>
             <section className="premiumCard">
